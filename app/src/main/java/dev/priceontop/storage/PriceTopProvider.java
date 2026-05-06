@@ -11,7 +11,6 @@ import android.os.Bundle;
 import android.os.Process;
 import dev.priceontop.core.PriceConfig;
 import dev.priceontop.core.PriceState;
-import java.util.Map;
 
 public final class PriceTopProvider extends ContentProvider {
     private PriceStorage storage;
@@ -31,10 +30,20 @@ public final class PriceTopProvider extends ContentProvider {
         enforceAllowed(request);
 
         if (PriceTopContract.METHOD_GET_CONFIG.equals(method)) {
-            return configBundle();
+            return configBundle(false);
+        }
+        if (PriceTopContract.METHOD_GET_REFRESH_CONFIG.equals(method)) {
+            return configBundle(true);
         }
         if (PriceTopContract.METHOD_GET_CACHE.equals(method)) {
             return cacheBundle();
+        }
+        if (PriceTopContract.METHOD_SAVE_CACHE.equals(method)) {
+            PriceState state = PriceTopContract.stateFromBundle(extras);
+            if (storage != null) {
+                storage.saveState(state);
+            }
+            return statusBundle("ok");
         }
         if (PriceTopContract.METHOD_SAVE_CONFIG.equals(method)) {
             if (request.callerUid != request.ownUid) {
@@ -75,11 +84,11 @@ public final class PriceTopProvider extends ContentProvider {
         throw new UnsupportedOperationException("PriceTopProvider exposes call() only");
     }
 
-    private Bundle configBundle() {
+    private Bundle configBundle(boolean includeSensitive) {
         PriceConfig config = storage == null ? null : storage.loadConfig();
         Bundle bundle = statusBundle("ok");
         if (config != null) {
-            putPrefixed(bundle, PriceTopContract.KEY_PREFIX_CONFIG, config.toSanitizedMap());
+            PriceTopContract.putConfig(bundle, config, includeSensitive);
         }
         return bundle;
     }
@@ -87,7 +96,7 @@ public final class PriceTopProvider extends ContentProvider {
     private Bundle cacheBundle() {
         PriceState state = storage == null ? PriceState.empty() : storage.loadState();
         Bundle bundle = statusBundle("ok");
-        putPrefixed(bundle, PriceTopContract.KEY_PREFIX_CACHE, state.toSanitizedMap());
+        PriceTopContract.putState(bundle, state);
         return bundle;
     }
 
@@ -96,12 +105,6 @@ public final class PriceTopProvider extends ContentProvider {
         bundle.putString(PriceTopContract.KEY_STATUS, status);
         bundle.putBoolean(PriceTopContract.KEY_ALLOWED, true);
         return bundle;
-    }
-
-    private static void putPrefixed(Bundle bundle, String prefix, Map<String, String> values) {
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            bundle.putString(prefix + entry.getKey(), entry.getValue());
-        }
     }
 
     private AccessRequest currentAccessRequest() {

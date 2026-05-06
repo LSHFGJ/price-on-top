@@ -99,11 +99,15 @@ public final class PriceConfig {
     }
 
     public Map<String, String> toSanitizedMap() {
+        return toIpcMap(false);
+    }
+
+    public Map<String, String> toIpcMap(boolean includeSensitive) {
         Map<String, String> values = new LinkedHashMap<>();
         values.put("enabled", Boolean.toString(enabled));
         values.put("providerType", providerType == null ? "" : providerType.name());
         values.put("symbol", symbol() == null ? "" : symbol());
-        values.put("apiKey", apiKey == null ? "" : "***");
+        values.put("apiKey", apiKey == null ? "" : includeSensitive ? apiKey : "***");
         values.put("refreshIntervalSeconds", Integer.toString(refreshPolicy.refreshIntervalSeconds()));
         values.put("timeoutMillis", Integer.toString(refreshPolicy.timeoutMillis()));
         values.put("staleThresholdMillis", Long.toString(refreshPolicy.staleThresholdMillis()));
