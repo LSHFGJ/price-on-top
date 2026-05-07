@@ -37,6 +37,14 @@ public final class PriceFormatterTest {
     }
 
     @Test
+    public void stripsBidirectionalControlsFromFormatterInput() {
+        assertEquals(
+            "BTCUSD $123",
+            formatter.format(freshQuote("BTC\u202EUSD", 123.0d), NOW_MILLIS, RefreshPolicy.defaults())
+        );
+    }
+
+    @Test
     public void prefixesStaleMarkerBeforePrice() {
         PriceState stale = PriceState.withQuote(
             new PriceQuote("BTC", 65_000.12d, "$", NOW_MILLIS - 1_000L),

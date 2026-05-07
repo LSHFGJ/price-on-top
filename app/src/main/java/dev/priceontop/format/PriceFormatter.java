@@ -67,13 +67,32 @@ public final class PriceFormatter {
     }
 
     private static String truncateSymbol(String symbol) {
+        String sanitized = sanitizeSymbol(symbol);
+        if (sanitized.isBlank()) {
+            return "";
+        }
+        int count = sanitized.codePointCount(0, sanitized.length());
+        if (count <= MAX_SYMBOL_DISPLAY_CHARS) {
+            return sanitized;
+        }
+        return sanitized.substring(0, sanitized.offsetByCodePoints(0, MAX_SYMBOL_DISPLAY_CHARS));
+    }
+
+    private static String sanitizeSymbol(String symbol) {
         if (symbol == null || symbol.isBlank()) {
             return "";
         }
-        int count = symbol.codePointCount(0, symbol.length());
-        if (count <= MAX_SYMBOL_DISPLAY_CHARS) {
-            return symbol;
-        }
-        return symbol.substring(0, symbol.offsetByCodePoints(0, MAX_SYMBOL_DISPLAY_CHARS));
+        StringBuilder builder = new StringBuilder(symbol.length());
+        symbol.codePoints()
+            .filter(codePoint -> !isBidirectionalControl(codePoint))
+            .forEach(builder::appendCodePoint);
+        return builder.toString().trim();
+    }
+
+    private static boolean isBidirectionalControl(int codePoint) {
+        return codePoint == 0x200E
+            || codePoint == 0x200F
+            || (codePoint >= 0x202A && codePoint <= 0x202E)
+            || (codePoint >= 0x2066 && codePoint <= 0x2069);
     }
 }
