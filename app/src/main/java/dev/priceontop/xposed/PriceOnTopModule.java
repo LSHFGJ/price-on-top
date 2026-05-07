@@ -158,7 +158,7 @@ public final class PriceOnTopModule extends XposedModule {
             Method currentApplication = activityThread.getMethod("currentApplication");
             Object application = currentApplication.invoke(null);
             if (application instanceof Context context) {
-                return context.getApplicationContext();
+                return applicationContextOrSelf(context);
             }
             Method currentActivityThread = activityThread.getMethod("currentActivityThread");
             Object thread = currentActivityThread.invoke(null);
@@ -166,12 +166,18 @@ public final class PriceOnTopModule extends XposedModule {
                 Method getSystemContext = activityThread.getMethod("getSystemContext");
                 Object context = getSystemContext.invoke(thread);
                 if (context instanceof Context systemContext) {
-                    return systemContext.getApplicationContext();
+                    Context applicationContext = systemContext.getApplicationContext();
+                    return applicationContext == null ? systemContext : applicationContext;
                 }
             }
         } catch (ReflectiveOperationException ignored) {
         }
         return null;
+    }
+
+    private static Context applicationContextOrSelf(Context context) {
+        Context applicationContext = context.getApplicationContext();
+        return applicationContext == null ? context : applicationContext;
     }
 
     private void safeLog(int priority, String message) {

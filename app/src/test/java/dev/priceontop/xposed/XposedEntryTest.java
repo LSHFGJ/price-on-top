@@ -26,6 +26,14 @@ public final class XposedEntryTest {
         assertEquals("com.android.systemui", readMetadata("scope.list"));
     }
 
+    @Test
+    public void contextFallbackKeepsSystemContextWhenApplicationContextUnavailable() throws IOException {
+        String source = readSource("PriceOnTopModule.java");
+
+        assertTrue(source.contains("Context applicationContext = systemContext.getApplicationContext();"));
+        assertTrue(source.contains("return applicationContext == null ? systemContext : applicationContext;"));
+    }
+
     private static String readSource(String fileName) throws IOException {
         Path sourcePath = Path.of("src", "main", "java", "dev", "priceontop", "xposed", fileName);
         return new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
