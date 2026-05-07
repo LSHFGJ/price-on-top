@@ -50,6 +50,7 @@ public final class XposedEntryTest {
         String guardBody = between(source, "private boolean shouldRegisterSystemUiHooks", "private Bundle configBundleFromProvider");
 
         assertTrue(source.contains("configBundleFromProvider()"));
+        assertTrue(guardBody.contains("PriceTopContract.shouldRegisterSystemUiHooks(configBundle)"));
         assertTrue(guardBody.contains("PriceTopContract.hasSystemUiConfig(configBundle)"));
         assertTrue(guardBody.contains("PriceTopContract.systemUiHookKillSwitchEnabled(configBundle)"));
         assertTrue(guardBody.contains("PriceTopContract.experimentalPlacementEnabled(configBundle)"));

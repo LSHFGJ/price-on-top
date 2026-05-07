@@ -70,23 +70,14 @@ public final class PriceOnTopModule extends XposedModule {
     }
 
     boolean shouldRegisterSystemUiHooks(String packageName, String processName, RomFamily romFamily, Bundle configBundle) {
-        if (!PriceTopContract.hasSystemUiConfig(configBundle)) {
+        boolean hasSystemUiConfig = PriceTopContract.hasSystemUiConfig(configBundle);
+        boolean killSwitchEnabled = hasSystemUiConfig && PriceTopContract.systemUiHookKillSwitchEnabled(configBundle);
+        if (!PriceTopContract.shouldRegisterSystemUiHooks(configBundle)) {
+            String event = killSwitchEnabled ? "systemui-hook-kill-switch" : "systemui-hook-config-blocked";
             safeLog(
                 Log.INFO,
                 XposedHookDiagnostics.lifecycleEvent(
-                    "systemui-hook-config-blocked",
-                    packageName,
-                    processName,
-                    romFamily
-                )
-            );
-            return false;
-        }
-        if (PriceTopContract.systemUiHookKillSwitchEnabled(configBundle)) {
-            safeLog(
-                Log.INFO,
-                XposedHookDiagnostics.lifecycleEvent(
-                    "systemui-hook-kill-switch",
+                    event,
                     packageName,
                     processName,
                     romFamily
