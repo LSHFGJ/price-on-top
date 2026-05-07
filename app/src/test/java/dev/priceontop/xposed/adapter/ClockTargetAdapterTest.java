@@ -61,6 +61,19 @@ public final class ClockTargetAdapterTest {
     }
 
     @Test
+    public void aospAdapterNoOpsWhenClockAlreadyDecorated() throws Exception {
+        Object adapter = newAdapter("dev.priceontop.xposed.adapter.AospClockAdapter");
+        Clock clock = new Clock("12:30 · BTC $65,000");
+
+        Object result = decorate(adapter, clock, "BTC $65,000");
+
+        assertEquals("NO_OP", resultStatus(result));
+        assertTrue(resultSupported(result));
+        assertFalse(resultMutated(result));
+        assertEquals("12:30 · BTC $65,000", clock.getText().toString());
+    }
+
+    @Test
     public void miuiAdapterDecoratesCollapsedClockTarget() throws Exception {
         Object adapter = newAdapter("dev.priceontop.xposed.adapter.MiuiHyperOsClockAdapter");
         com.android.systemui.statusbar.views.MiuiClock clock =

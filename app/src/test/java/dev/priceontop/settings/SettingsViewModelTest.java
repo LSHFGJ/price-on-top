@@ -202,6 +202,7 @@ public class SettingsViewModelTest {
 
         viewModel.setProvider("FINNHUB");
         viewModel.setSymbol("");
+        viewModel.setApiKey("preview-key");
         String errorPreview = viewModel.testProvider();
         assertTrue(errorPreview.contains("invalid"));
         assertEquals("", viewModel.getLastSuccessfulPreview());
