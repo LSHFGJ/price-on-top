@@ -1,6 +1,5 @@
 package dev.priceontop.storage;
 
-import android.net.Uri;
 import android.os.Bundle;
 import dev.priceontop.core.PriceConfig;
 import dev.priceontop.core.PriceQuote;
@@ -13,7 +12,7 @@ import java.util.Map;
 
 public final class PriceTopContract {
     public static final String AUTHORITY = "dev.priceontop.provider";
-    public static final Uri CONTENT_URI = Uri.parse("content://" + AUTHORITY);
+    public static final String CONTENT_URI = "content://" + AUTHORITY;
 
     public static final String METHOD_GET_CONFIG = "get_config";
     public static final String METHOD_GET_REFRESH_CONFIG = "get_refresh_config";
@@ -25,6 +24,8 @@ public final class PriceTopContract {
     public static final String KEY_ALLOWED = "allowed";
     public static final String KEY_PREFIX_CONFIG = "config.";
     public static final String KEY_PREFIX_CACHE = "cache.";
+    public static final String KEY_SYSTEM_UI_HOOK_KILL_SWITCH = "systemUiHookKillSwitchEnabled";
+    public static final String KEY_EXPERIMENTAL_PLACEMENT_ENABLED = "experimentalPlacementEnabled";
 
     private PriceTopContract() {
     }
@@ -34,6 +35,46 @@ public final class PriceTopContract {
             return;
         }
         putPrefixed(bundle, KEY_PREFIX_CONFIG, config.toIpcMap(includeSensitive));
+    }
+
+    public static void putSystemUiDefaults(Bundle bundle, boolean experimentalPlacementEnabled) {
+        if (bundle == null) {
+            return;
+        }
+        bundle.putString(KEY_PREFIX_CONFIG + KEY_SYSTEM_UI_HOOK_KILL_SWITCH, Boolean.toString(false));
+        bundle.putString(KEY_PREFIX_CONFIG + KEY_EXPERIMENTAL_PLACEMENT_ENABLED, Boolean.toString(experimentalPlacementEnabled));
+    }
+
+    public static android.net.Uri contentUri() {
+        return android.net.Uri.parse(CONTENT_URI);
+    }
+
+    public static boolean shouldRegisterSystemUiHooks(Bundle bundle) {
+        try {
+            return shouldRegisterSystemUiHooks(configFromBundle(bundle), systemUiHookKillSwitchEnabled(bundle));
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    public static boolean shouldRegisterSystemUiHooks(PriceConfig config, boolean systemUiHookKillSwitchEnabled) {
+        return SystemUiHookGate.shouldRegisterSystemUiHooks(config, systemUiHookKillSwitchEnabled);
+    }
+
+    public static boolean hasSystemUiConfig(Bundle bundle) {
+        try {
+            return configFromBundle(bundle) != null;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    public static boolean systemUiHookKillSwitchEnabled(Bundle bundle) {
+        return boolValue(bundle, KEY_PREFIX_CONFIG, KEY_SYSTEM_UI_HOOK_KILL_SWITCH, false);
+    }
+
+    public static boolean experimentalPlacementEnabled(Bundle bundle) {
+        return boolValue(bundle, KEY_PREFIX_CONFIG, KEY_EXPERIMENTAL_PLACEMENT_ENABLED, false);
     }
 
     public static PriceConfig configFromBundle(Bundle bundle) {
@@ -130,6 +171,14 @@ public final class PriceTopContract {
         } catch (NumberFormatException exception) {
             return fallback;
         }
+    }
+
+    private static boolean boolValue(Bundle bundle, String prefix, String key, boolean fallback) {
+        String value = stringValue(bundle, prefix, key);
+        if (value.isBlank()) {
+            return fallback;
+        }
+        return Boolean.parseBoolean(value);
     }
 
     private static long longValue(Bundle bundle, String prefix, String key, long fallback) {

@@ -89,7 +89,10 @@ public final class PriceTopProvider extends ContentProvider {
         Bundle bundle = statusBundle("ok");
         if (config != null) {
             PriceTopContract.putConfig(bundle, config, includeSensitive);
+            PriceTopContract.putSystemUiDefaults(bundle, false);
+            return bundle;
         }
+        PriceTopContract.putSystemUiDefaults(bundle, false);
         return bundle;
     }
 

@@ -34,6 +34,37 @@ public final class XposedEntryTest {
         assertTrue(source.contains("return applicationContext == null ? systemContext : applicationContext;"));
     }
 
+    @Test
+    public void moduleSkipsSystemUiHookRegistrationWhenContractDisables() throws IOException {
+        String source = readSource("PriceOnTopModule.java");
+        String body = between(source, "private void continueForSystemUi", "private boolean shouldRegisterSystemUiHooks");
+
+        assertTrue(body.contains("if (!shouldRegisterSystemUiHooks(packageName, processName, romFamily))"));
+        assertTrue(body.contains("systemui-hook-registration-skipped"));
+        assertTrue(body.contains("registerClockHooks(param, romFamily, activeController);"));
+    }
+
+    @Test
+    public void moduleHookRegistrationUsesContractAndKillSwitch() throws IOException {
+        String source = readSource("PriceOnTopModule.java");
+        String guardBody = between(source, "private boolean shouldRegisterSystemUiHooks", "private Bundle configBundleFromProvider");
+
+        assertTrue(source.contains("configBundleFromProvider()"));
+        assertTrue(guardBody.contains("PriceTopContract.hasSystemUiConfig(configBundle)"));
+        assertTrue(guardBody.contains("PriceTopContract.systemUiHookKillSwitchEnabled(configBundle)"));
+        assertTrue(guardBody.contains("PriceTopContract.experimentalPlacementEnabled(configBundle)"));
+    }
+
+    @Test
+    public void moduleUsesContractGateForSystemUiHookDecision() throws IOException {
+        String source = readSource("PriceOnTopModule.java");
+
+        assertTrue(source.contains("boolean shouldRegisterSystemUiHooks(String packageName, String processName, RomFamily romFamily)"));
+        assertTrue(source.contains("shouldRegisterSystemUiHooks(packageName, processName, romFamily, configBundleFromProvider())"));
+        assertTrue(source.contains("PriceTopContract.hasSystemUiConfig(configBundle)"));
+        assertTrue(source.contains("PriceTopContract.systemUiHookKillSwitchEnabled(configBundle)"));
+    }
+
     private static String readSource(String fileName) throws IOException {
         Path sourcePath = Path.of("src", "main", "java", "dev", "priceontop", "xposed", fileName);
         return new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
@@ -42,5 +73,11 @@ public final class XposedEntryTest {
     private static String readMetadata(String fileName) throws IOException {
         Path metadataPath = Path.of("src", "main", "resources", "META-INF", "xposed", fileName);
         return new String(Files.readAllBytes(metadataPath), StandardCharsets.UTF_8).trim();
+    }
+
+    private static String between(String source, String startMarker, String endMarker) {
+        int start = source.indexOf(startMarker);
+        int end = source.indexOf(endMarker);
+        return start < 0 || end < 0 || end <= start ? source : source.substring(start, end);
     }
 }

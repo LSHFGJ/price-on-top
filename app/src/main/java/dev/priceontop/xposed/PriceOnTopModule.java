@@ -1,6 +1,8 @@
 package dev.priceontop.xposed;
 
 import android.content.Context;
+import android.content.ContentResolver;
+import android.os.Bundle;
 import android.os.Build;
 import android.util.Log;
 import io.github.libxposed.api.XposedModule;
@@ -9,6 +11,7 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import dev.priceontop.storage.PriceTopContract;
 
 public final class PriceOnTopModule extends XposedModule {
     private static final String TAG = "PriceOnTop";
@@ -48,12 +51,84 @@ public final class PriceOnTopModule extends XposedModule {
             processName,
             romFamily
         ));
+
+        if (!shouldRegisterSystemUiHooks(packageName, processName, romFamily)) {
+            safeLog(Log.INFO, "systemui-hook-registration-skipped");
+            return;
+        }
+
         SystemUiPriceController activeController = controller();
         if (activeController == null) {
             safeLog(Log.WARN, "systemui-controller-unavailable");
             return;
         }
         registerClockHooks(param, romFamily, activeController);
+    }
+
+    private boolean shouldRegisterSystemUiHooks(String packageName, String processName, RomFamily romFamily) {
+        return shouldRegisterSystemUiHooks(packageName, processName, romFamily, configBundleFromProvider());
+    }
+
+    boolean shouldRegisterSystemUiHooks(String packageName, String processName, RomFamily romFamily, Bundle configBundle) {
+        if (!PriceTopContract.hasSystemUiConfig(configBundle)) {
+            safeLog(
+                Log.INFO,
+                XposedHookDiagnostics.lifecycleEvent(
+                    "systemui-hook-config-blocked",
+                    packageName,
+                    processName,
+                    romFamily
+                )
+            );
+            return false;
+        }
+        if (PriceTopContract.systemUiHookKillSwitchEnabled(configBundle)) {
+            safeLog(
+                Log.INFO,
+                XposedHookDiagnostics.lifecycleEvent(
+                    "systemui-hook-kill-switch",
+                    packageName,
+                    processName,
+                    romFamily
+                )
+            );
+            return false;
+        }
+
+        if (PriceTopContract.experimentalPlacementEnabled(configBundle)) {
+            safeLog(
+                Log.DEBUG,
+                XposedHookDiagnostics.lifecycleEvent(
+                    "systemui-experimental-placement-enabled",
+                    packageName,
+                    processName,
+                    romFamily
+                )
+            );
+        }
+        return true;
+    }
+
+    private Bundle configBundleFromProvider() {
+        try {
+            Context context = currentProcessContext();
+            if (context == null) {
+                return null;
+            }
+            ContentResolver resolver = context.getContentResolver();
+            if (resolver == null) {
+                return null;
+            }
+            return resolver.call(
+                PriceTopContract.contentUri(),
+                PriceTopContract.METHOD_GET_CONFIG,
+                null,
+                null
+            );
+        } catch (RuntimeException exception) {
+            safeLog(Log.WARN, XposedHookDiagnostics.failure(exception));
+            return null;
+        }
     }
 
     private SystemUiPriceController controller() {

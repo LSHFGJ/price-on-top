@@ -156,7 +156,7 @@ public final class SystemUiPriceController {
                 if (contentResolver == null) {
                     return null;
                 }
-                return contentResolver.call(PriceTopContract.CONTENT_URI, method, null, extras);
+                return contentResolver.call(PriceTopContract.contentUri(), method, null, extras);
             } catch (RuntimeException exception) {
                 diagnostics.log(XposedHookDiagnostics.failure(exception));
                 return null;
