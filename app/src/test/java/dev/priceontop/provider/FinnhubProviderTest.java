@@ -89,6 +89,27 @@ public final class FinnhubProviderTest {
     }
 
     @Test
+    public void missingApiKeyReturnsUnauthorizedWithoutTransportCall() {
+        RecordingTransport transport = RecordingTransport.respondingWith(
+            new HttpResponse(200, "{ \"c\": 123.45, \"pc\": 120.00, \"t\": 1710000000 }")
+        );
+        PriceProvider.Request request = PriceProvider.Request.builder()
+            .symbol("AAPL")
+            .apiKey(" ")
+            .refreshPolicy(RefreshPolicy.defaults())
+            .nowMillis(FETCHED_AT_MILLIS)
+            .build();
+
+        PriceState state = new FinnhubProvider(transport).fetch(request);
+
+        assertFalse(state.hasQuote());
+        assertNotNull(state.error());
+        assertEquals(ProviderError.Code.UNAUTHORIZED, state.error().code());
+        assertTrue(state.error().message().contains("API key"));
+        assertEquals(0, transport.requestCount);
+    }
+
+    @Test
     public void unauthorizedStatusReturnsSanitizedProviderError() {
         RecordingTransport transport = RecordingTransport.respondingWith(
             new HttpResponse(401, "{\"error\":\"invalid token=" + RAW_API_KEY + "\"}")
@@ -117,6 +138,7 @@ public final class FinnhubProviderTest {
         private final IOException failure;
         private HttpRequest lastRequest;
         private int lastTimeoutMillis;
+        private int requestCount;
 
         private RecordingTransport(HttpResponse response, IOException failure) {
             this.response = response;
@@ -133,6 +155,7 @@ public final class FinnhubProviderTest {
 
         @Override
         public HttpResponse get(HttpRequest request, int timeoutMillis) throws IOException {
+            requestCount++;
             this.lastRequest = request;
             this.lastTimeoutMillis = timeoutMillis;
             if (failure != null) {

@@ -24,6 +24,9 @@ public final class FinnhubProvider implements PriceProvider {
 
     @Override
     public PriceState fetch(Request request) {
+        if (request.apiKey() == null || request.apiKey().isBlank()) {
+            return ProviderDiagnostics.error(ProviderError.Code.UNAUTHORIZED, "Finnhub API key is required");
+        }
         HttpRequest httpRequest = HttpRequest.get(buildUrl(request), Map.of(), request.apiKey());
         try {
             HttpResponse response = transport.get(httpRequest, request.refreshPolicy().timeoutMillis());
