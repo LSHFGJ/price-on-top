@@ -7,6 +7,6 @@ public final class SystemUiHookGate {
     }
 
     public static boolean shouldRegisterSystemUiHooks(PriceConfig config, boolean systemUiHookKillSwitchEnabled) {
-        return config != null && !systemUiHookKillSwitchEnabled;
+        return config != null && config.enabled() && !systemUiHookKillSwitchEnabled;
     }
 }
