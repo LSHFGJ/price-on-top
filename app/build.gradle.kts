@@ -103,6 +103,118 @@ tasks.register("verifyXposedMetadata") {
     }
 }
 
+tasks.register("verifyNoSecretsAndNoUiThreadNetwork") {
+    group = "verification"
+    description = "Verifies no production secrets, Yahoo default endpoint, legacy metadata, or UI-thread network paths."
+
+    val appSourceDir = layout.projectDirectory.dir("src").asFile
+    val scriptsDir = rootProject.layout.projectDirectory.dir("scripts").asFile
+    val guardedRoots = listOf(appSourceDir, scriptsDir).filter { it.exists() }
+    val guardedConfigFiles = listOf(
+        layout.projectDirectory.file("gradle.properties").asFile,
+        rootProject.layout.projectDirectory.file("build.gradle.kts").asFile,
+        rootProject.layout.projectDirectory.file("settings.gradle.kts").asFile,
+        rootProject.layout.projectDirectory.file("gradle.properties").asFile
+    ).filter { it.exists() }
+
+    inputs.files(guardedRoots, guardedConfigFiles)
+
+    doLast {
+        fun requireGuard(condition: Boolean, message: String) {
+            if (!condition) throw GradleException(message)
+        }
+
+        fun relativePath(file: File): String =
+            file.relativeToOrSelf(projectDir).path.replace(File.separatorChar, '/')
+
+        val excludedTestPathMarker = "src/test"
+        fun isExcludedTestFile(file: File): Boolean =
+            relativePath(file).startsWith("$excludedTestPathMarker/")
+
+        val textExtensions = setOf("java", "xml", "properties", "prop", "list", "gradle", "kts", "sh", "json", "yml", "yaml")
+        val guardedFiles = guardedRoots
+            .asSequence()
+            .flatMap { root -> root.walkTopDown() }
+            .filter { file -> file.isFile }
+            .filterNot { file -> isExcludedTestFile(file) }
+            .filter { file -> file.extension.lowercase() in textExtensions }
+            .plus(guardedConfigFiles.asSequence())
+            .distinctBy { file -> file.absoluteFile.normalize() }
+            .toList()
+
+        val forbiddenYahooTokens = listOf(
+            "query1.finance.",
+            "query2.finance.",
+            "finance.yahoo",
+            "yahoo"
+        )
+        val yahooOffenders = guardedFiles.mapNotNull { file ->
+            val content = file.readText()
+            forbiddenYahooTokens.firstOrNull { token -> content.contains(token, ignoreCase = true) }?.let { token ->
+                "${relativePath(file)} contains forbidden Yahoo token $token"
+            }
+        }
+        requireGuard(yahooOffenders.isEmpty(), yahooOffenders.joinToString(separator = "\n"))
+
+        val secretPatterns = listOf(
+            Regex("""(?i)\b(api[_-]?key|apikey|token|secret|authorization)\b\s*[:=]\s*["'][A-Za-z0-9._~+/=-]{16,}["']"""),
+            Regex("""(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{20,}""")
+        )
+        val secretOffenders = guardedFiles.mapNotNull { file ->
+            val content = file.readText()
+            secretPatterns.firstOrNull { pattern -> pattern.containsMatchIn(content) }?.let {
+                "${relativePath(file)} contains likely production secret literal"
+            }
+        }
+        requireGuard(secretOffenders.isEmpty(), secretOffenders.joinToString(separator = "\n"))
+
+        val legacyAsset = layout.projectDirectory.file("src/main/assets/xposed_init").asFile
+        requireGuard(!legacyAsset.exists(), "Legacy assets/xposed_init must not exist")
+
+        val forbiddenLegacyTokens = listOf(
+            "xposed" + "minversion",
+            "xposed" + "module",
+            "xposed" + "description"
+        )
+        val legacyTokenOffenders = guardedFiles.mapNotNull { file ->
+            val content = file.readText()
+            forbiddenLegacyTokens.firstOrNull { token -> token in content }?.let { token ->
+                "${relativePath(file)} contains legacy Xposed metadata token $token"
+            }
+        }
+        requireGuard(legacyTokenOffenders.isEmpty(), legacyTokenOffenders.joinToString(separator = "\n"))
+
+        val uiThreadBoundaryFiles = listOf(
+            "src/main/java/dev/priceontop/xposed/PriceOnTopModule.java",
+            "src/main/java/dev/priceontop/xposed/SystemUiPriceController.java",
+            "src/main/java/dev/priceontop/xposed/ClockTextDecorator.java",
+            "src/main/java/dev/priceontop/xposed/adapter/ClockTargetAdapter.java",
+            "src/main/java/dev/priceontop/xposed/adapter/AospClockAdapter.java",
+            "src/main/java/dev/priceontop/xposed/adapter/MiuiHyperOsClockAdapter.java"
+        )
+        val forbiddenUiNetworkTokens = listOf(
+            "HttpURLConnection",
+            "openConnection(",
+            "HttpTransport",
+            "FinnhubProvider",
+            "CustomJsonProvider",
+            ".fetch(",
+            "new Thread(",
+            "Executors."
+        )
+        val uiThreadNetworkOffenders = uiThreadBoundaryFiles.flatMap { path ->
+            val file = layout.projectDirectory.file(path).asFile
+            requireGuard(file.isFile, "Missing UI-thread network guard source file: $path")
+            val content = file.readText()
+            forbiddenUiNetworkTokens.mapNotNull { token ->
+                if (token in content) "$path contains forbidden UI-thread network token $token" else null
+            }
+        }
+        requireGuard(uiThreadNetworkOffenders.isEmpty(), uiThreadNetworkOffenders.joinToString(separator = "\n"))
+    }
+}
+
 tasks.named("check") {
     dependsOn("verifyXposedMetadata")
+    dependsOn("verifyNoSecretsAndNoUiThreadNetwork")
 }
