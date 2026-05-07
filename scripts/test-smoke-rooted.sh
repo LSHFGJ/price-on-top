@@ -43,6 +43,8 @@ case "${1:-}" in
       exit 0
     fi
     printf '01-01 00:00:00.000 I/PriceOnTop: systemui-clock-hook-installed class=fake.Clock\n'
+    printf '01-01 00:00:00.001 I/PriceOnTop: systemui-scope-accepted class=fake.Scope\n'
+    printf '01-01 00:00:00.002 I/PriceOnTop: systemui-entry-ready class=fake.Entry\n'
     sleep 30
     exit 0
     ;;

@@ -27,6 +27,8 @@ LOGCAT_PID=""
 SERVER_PID=""
 SMOKE_STATUS="PASS"
 SMOKE_MESSAGE="PriceOnTop hook marker observed; screenshot and logcat evidence captured"
+LOGCAT_MARKER_PATTERN="PriceOnTop|systemui-clock-hook-installed|systemui-scope-accepted|systemui-entry-ready"
+REQUIRED_MARKER="systemui-clock-hook-installed"
 
 usage() {
   cat <<'USAGE'
@@ -139,6 +141,16 @@ fail() {
   exit 1
 }
 
+skip() {
+  local message="$1"
+  SMOKE_STATUS="SKIP"
+  SMOKE_MESSAGE="${message}"
+  printf 'Smoke skipped: %s\n' "${message}" >&2
+  write_summary "SKIP" "${message}"
+  SUMMARY_WRITTEN="true"
+  exit 1
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -246,9 +258,9 @@ select_device() {
 
   if [[ ${device_count} -eq 0 ]]; then
     if [[ -n "${non_device_state}" ]]; then
-      fail "no matching adb device; found non-ready device ${non_device_state}"
+      skip "no ready rooted LSPosed adb device found; prerequisite unavailable (${non_device_state}); connect an authorized device or set ADB_SERIAL"
     fi
-    fail "no matching adb device; connect one authorized rooted LSPosed device or set ADB_SERIAL"
+    skip "no adb device connected; prerequisite unavailable"
   fi
   if [[ ${device_count} -gt 1 ]]; then
     fail "multiple adb devices connected; set ADB_SERIAL to choose the rooted LSPosed target"
@@ -566,10 +578,10 @@ analyze_logcat() {
     SMOKE_MESSAGE="PriceOnTop fail-closed unsupported clock target for ROM family ${ROM_FAMILY}; screenshot and logcat evidence captured"
     return
   fi
-  if ! grep -E 'PriceOnTop|systemui-clock-hook-installed|systemui-scope-accepted|systemui-entry-ready' "${EVIDENCE_DIR}/logcat.txt" > "${EVIDENCE_DIR}/priceontop-markers.txt" 2>/dev/null; then
+  if ! grep -E "${LOGCAT_MARKER_PATTERN}" "${EVIDENCE_DIR}/logcat.txt" > "${EVIDENCE_DIR}/priceontop-markers.txt" 2>/dev/null; then
     fail "no PriceOnTop log marker after SystemUI restart; verify LSPosed is active and the module is enabled for com.android.systemui"
   fi
-  if ! grep -F 'systemui-clock-hook-installed' "${EVIDENCE_DIR}/priceontop-markers.txt" >/dev/null 2>&1; then
+  if ! grep -F "${REQUIRED_MARKER}" "${EVIDENCE_DIR}/priceontop-markers.txt" >/dev/null 2>&1; then
     fail "PriceOnTop module loaded but no clock hook installation marker was observed; see priceontop-markers.txt"
   fi
 }
