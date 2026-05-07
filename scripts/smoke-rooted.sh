@@ -346,9 +346,15 @@ verify_root() {
 
 verify_lsposed() {
   CURRENT_STEP="detecting LSPosed"
-  local packages module_dirs
+  local packages module_dirs candidate
   packages="$(shell_out pm list packages 2>&1 || true)"
-  module_dirs="$(root_shell 'for path in /data/adb/modules/zygisk_lsposed /data/adb/modules/riru_lsposed /data/adb/lspd /data/adb/modules/lsposed; do [ -e "$path" ] && echo "$path"; done' 2>&1 | tr -d '\r' || true)"
+  module_dirs=""
+  for candidate in /data/adb/modules/zygisk_lsposed /data/adb/modules/riru_lsposed /data/adb/lspd /data/adb/modules/lsposed; do
+    if root_shell "[ -e ${candidate} ]" >/dev/null 2>&1; then
+      module_dirs+="${candidate}"$'\n'
+    fi
+  done
+  module_dirs="${module_dirs%$'\n'}"
   {
     printf 'lsposed_packages:\n'
     printf '%s\n' "${packages}" | awk 'tolower($0) ~ /lsposed|lspd/ { print }'
@@ -454,11 +460,12 @@ xml_escape() {
 
 write_debug_config() {
   CURRENT_STEP="configuring app debug storage"
-  local timestamp_millis symbol_xml url_xml config_xml
+  local timestamp_millis symbol_xml url_xml config_xml remote_config
   timestamp_millis="$(( $(date +%s) * 1000 ))"
   symbol_xml="$(xml_escape "${SYMBOL}")"
   url_xml="$(xml_escape 'http://127.0.0.1:18080/quote?symbol={symbol}')"
   config_xml="${EVIDENCE_DIR}/${PREFS_NAME}.xml"
+  remote_config="/data/local/tmp/${APP_PACKAGE}.${PREFS_NAME}.$$.xml"
 
   cat > "${config_xml}" <<XML
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
@@ -483,9 +490,16 @@ write_debug_config() {
 </map>
 XML
 
-  if ! adb_target shell run-as "${APP_PACKAGE}" sh -c "mkdir -p shared_prefs && cat > shared_prefs/${PREFS_NAME}.xml && chmod 660 shared_prefs/${PREFS_NAME}.xml" < "${config_xml}" > "${EVIDENCE_DIR}/configure-app.txt" 2>&1; then
+  if ! {
+    adb_target push "${config_xml}" "${remote_config}"
+    adb_target shell run-as "${APP_PACKAGE}" mkdir -p shared_prefs
+    adb_target shell run-as "${APP_PACKAGE}" cp "${remote_config}" "shared_prefs/${PREFS_NAME}.xml"
+    adb_target shell run-as "${APP_PACKAGE}" chmod 660 "shared_prefs/${PREFS_NAME}.xml"
+  } > "${EVIDENCE_DIR}/configure-app.txt" 2>&1; then
+    adb_target shell rm -f "${remote_config}" >> "${EVIDENCE_DIR}/configure-app.txt" 2>&1 || true
     fail "unable to configure ${APP_PACKAGE} via run-as debug SharedPreferences; see configure-app.txt"
   fi
+  adb_target shell rm -f "${remote_config}" >> "${EVIDENCE_DIR}/configure-app.txt" 2>&1 || true
   adb_target shell run-as "${APP_PACKAGE}" ls -l "shared_prefs/${PREFS_NAME}.xml" >> "${EVIDENCE_DIR}/configure-app.txt" 2>&1 || fail "configured SharedPreferences file was not readable through run-as"
 }
 
