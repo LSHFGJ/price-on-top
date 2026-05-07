@@ -214,7 +214,65 @@ tasks.register("verifyNoSecretsAndNoUiThreadNetwork") {
     }
 }
 
+tasks.register("verifyNoPrototypeRuntimeMarkers") {
+    group = "verification"
+    description = "Verifies status bar prototype markers are absent from runtime and smoke scope."
+
+    val runtimeRoot = layout.projectDirectory.dir("src/main/java/dev/priceontop/xposed").asFile
+    val smokeScript = rootProject.layout.projectDirectory.file("scripts/smoke-rooted.sh").asFile
+
+    inputs.files(runtimeRoot)
+    inputs.file(smokeScript)
+
+    doLast {
+        fun relativePath(file: File): String =
+            file.relativeToOrSelf(projectDir).path.replace(File.separatorChar, '/')
+
+        val forbiddenPrototypeTokens = listOf(
+            "StatusBarPriceAreaAdapter",
+            "systemui-price-area-hook-installed",
+            "controller rendered price area",
+            "NotificationIconContainer",
+            "StatusIconContainer",
+            "PhoneStatusBarView",
+            ".addView("
+        )
+
+        val runtimeOffenders = runtimeRoot
+            .walkTopDown()
+            .filter { it.isFile }
+            .filter { it.extension.lowercase() == "java" }
+            .flatMap { file ->
+                val content = file.readText()
+                forbiddenPrototypeTokens.mapNotNull { token ->
+                    if (token in content) listOf(
+                        "${relativePath(file)} contains forbidden token '$token'"
+                    ) else emptyList()
+                }
+                    .flatten()
+            }
+            .toList()
+
+        val smokeOffenders = if (smokeScript.isFile) {
+            val content = smokeScript.readText()
+            forbiddenPrototypeTokens.mapNotNull { token ->
+                if (token in content) "${relativePath(smokeScript)} contains forbidden token '$token'" else null
+            }
+        } else {
+            listOf("Missing smoke script: ${relativePath(smokeScript)}")
+        }
+
+        val offenders = runtimeOffenders + smokeOffenders
+        if (offenders.isNotEmpty()) {
+            throw GradleException(offenders.joinToString(separator = "\n"))
+        }
+
+        println("NO_PROTOTYPE_MARKERS")
+    }
+}
+
 tasks.named("check") {
     dependsOn("verifyXposedMetadata")
     dependsOn("verifyNoSecretsAndNoUiThreadNetwork")
+    dependsOn("verifyNoPrototypeRuntimeMarkers")
 }
