@@ -12,6 +12,7 @@ mkdir -p "${EVIDENCE_DIR}"
   printf '\n==== PriceOnTop local CI run: %s ====\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   printf 'Repository root: %s\n' "${REPO_ROOT}"
   printf 'Gradle tasks: clean :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:verifyXposedMetadata :app:verifyNoSecretsAndNoUiThreadNetwork\n'
+  printf 'Script tests: scripts/test-smoke-rooted.sh\n'
 } >> "${EVIDENCE_FILE}"
 
 cd "${REPO_ROOT}"
@@ -34,3 +35,5 @@ export CI=true
   :app:lintDebug \
   :app:verifyXposedMetadata \
   :app:verifyNoSecretsAndNoUiThreadNetwork
+
+bash "${REPO_ROOT}/scripts/test-smoke-rooted.sh"
