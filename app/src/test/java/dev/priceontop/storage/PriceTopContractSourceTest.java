@@ -27,6 +27,17 @@ public final class PriceTopContractSourceTest {
         assertTrue(source.contains("experimentalPlacementEnabled(Bundle bundle)"));
     }
 
+    @Test
+    public void providerBacksSystemUiKillSwitchWithConfigDefaults() throws IOException {
+        String contractSource = readSource("PriceTopContract.java");
+        String providerSource = readSource("PriceTopProvider.java");
+
+        assertTrue(contractSource.contains("KEY_PREFIX_CONFIG + KEY_SYSTEM_UI_HOOK_KILL_SWITCH"));
+        assertTrue(contractSource.contains("bundle.putString(KEY_PREFIX_CONFIG + KEY_SYSTEM_UI_HOOK_KILL_SWITCH, Boolean.toString(false));"));
+        assertTrue(contractSource.contains("systemUiHookKillSwitchEnabled(bundle)"));
+        assertTrue(providerSource.contains("PriceTopContract.putSystemUiDefaults(bundle, false);"));
+    }
+
     private static String readSource(String fileName) throws IOException {
         Path sourcePath = Path.of("src", "main", "java", "dev", "priceontop", "storage", fileName);
         return new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);

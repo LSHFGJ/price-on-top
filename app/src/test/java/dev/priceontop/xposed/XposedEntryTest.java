@@ -65,6 +65,33 @@ public final class XposedEntryTest {
         assertTrue(source.contains("PriceTopContract.systemUiHookKillSwitchEnabled(configBundle)"));
     }
 
+    @Test
+    public void configBundleFromProviderFailsClosedWhenContextMissing() throws IOException {
+        String source = readSource("PriceOnTopModule.java");
+        String providerBody = between(source, "private Bundle configBundleFromProvider", "private SystemUiPriceController controller");
+        String guardBody = between(source, "boolean shouldRegisterSystemUiHooks", "private Bundle configBundleFromProvider");
+
+        assertTrue(providerBody.contains("Context context = currentProcessContext();"));
+        assertTrue(providerBody.contains("if (context == null)"));
+        assertTrue(providerBody.contains("ContentResolver resolver = context.getContentResolver();"));
+        assertTrue(providerBody.contains("if (resolver == null)"));
+        assertTrue(providerBody.contains("return null;"));
+        assertTrue(guardBody.contains("PriceTopContract.hasSystemUiConfig(configBundle)"));
+        assertTrue(guardBody.contains("return false;"));
+    }
+
+    @Test
+    public void missingDefaultClassLoaderSkipsClockHookRegistration() throws IOException {
+        String source = readSource("PriceOnTopModule.java");
+        String hookBody = between(source, "private void registerClockHooks", "private void hookSetTextIfPresent");
+
+        assertTrue(hookBody.contains("ClassLoader classLoader = param == null ? null : param.getDefaultClassLoader();"));
+        assertTrue(hookBody.contains("if (classLoader == null)"));
+        assertTrue(hookBody.contains("systemui-clock-hook-skipped missing-classloader"));
+        assertTrue(hookBody.contains("return;"));
+        assertTrue(hookBody.contains("hookSetTextIfPresent(classLoader, className, romFamily, activeController);"));
+    }
+
     private static String readSource(String fileName) throws IOException {
         Path sourcePath = Path.of("src", "main", "java", "dev", "priceontop", "xposed", fileName);
         return new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
